@@ -1,0 +1,143 @@
+---
+title: "MachineLearningProject"
+author: "Niharika"
+output:
+  html_document: default
+  pdf_document: default
+  md_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement â a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+## Preprocessing
+At the preprocessing step we load the dataset and prepare it for the analysis part.
+
+### Load data and explore data
+
+```{r}
+# Loading libraries
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+
+# Defining Seed
+SEED_VALUE = 4242
+
+train_set <- read.csv("pml-training.csv", sep = ",", na.strings = c("", "NA", "#DIV/0!"))
+test_set <- read.csv("pml-testing.csv", sep = ",", na.strings = c("", "NA", "#DIV/0!"))
+
+dim(train_set)
+dim(test_set)
+
+```
+
+### Clean the data
+Removing NAs in the training and test set:
+
+```{r}
+
+# Remove colums with NAs
+train_set <- train_set[, colSums(is.na(train_set)) == 0] 
+
+# Adapt to test set:
+test_set <- test_set[colnames(train_set[, !(names(train_set) %in% c("classe"))])] 
+
+# To remove not used columns which are only there for identification
+train_set <- train_set[, -(1:5)]
+test_set  <- test_set[, -(1:5)]
+
+# To print names without zeros
+print(names(train_set))
+print(names(test_set))
+
+
+dim(train_set) 
+dim(test_set)
+
+```
+
+
+### The training set and the test set
+Splitting the training set into a smaller training set and a test set to predict the out-of-sample error:-
+
+```{r}
+set.seed(SEED_VALUE)
+
+# Split the train set
+ids <- createDataPartition(train_set$classe, p=0.6, list=FALSE)
+train_train_set <- train_set[ids, ]
+train_test_set <- train_set[-ids, ]
+
+dim(train_train_set) 
+dim(train_test_set)
+```
+
+## Train the models
+To find a good model we train a a decison tree and a random forrest classifier both with a cross validation fold of size 5.
+
+### Decision Tree
+
+```{r}
+set.seed(SEED_VALUE)
+rpart_classifier <- train(classe ~., data=train_train_set, method="rpart",trControl=trainControl("cv",5))
+
+rpart_classifier
+```
+The best cross-validated model has a accuracy of 57.2%.
+
+### Random Forrest
+
+```{r}
+set.seed(SEED_VALUE)
+random_forrest_classifier <- train(classe ~., data=train_train_set, method="rf",trControl=trainControl("cv",5))
+
+random_forrest_classifier
+```
+The best cross-validated model has a accuracy of 99.1%.
+
+
+## Evaluate the models
+To find the best of the two prediction models we evaluate the out-of-sample error with help of the split off test set.
+
+### Decision Tree
+
+```{r}
+set.seed(SEED_VALUE)
+
+rpart_predictor <- predict(rpart_classifier, train_test_set)
+confusionMatrix(rpart_predictor, train_test_set$classe)
+```
+
+As seen in the results the decision tree has significant problems by classifing the C and D classes. Its overall accuracy rate is 54.4%.
+
+### Random Forrest
+
+```{r}
+set.seed(SEED_VALUE)
+
+random_forrest_predictor <- predict(random_forrest_classifier, train_test_set)
+confusionMatrix(random_forrest_predictor, train_test_set$classe)
+```
+
+Overall the random forrest shows very good results with a accuracy rate of 99.9%. Therefore it is used to predict the new values.
+
+## Predict new data
+To predict the values of new instances we use the trained random forrest classifier.
+
+```{r}
+set.seed(SEED_VALUE)
+
+predictions <- predict(random_forrest_classifier, newdata=test_set)
+print(predictions)
+
+```
+
+
